@@ -16,41 +16,40 @@ BLOCKCHAIN_B = "hospital_B_blockchain.json"
 with open("../Local_Hospital_B/hospital_B_public.pem", "rb") as pub_file:
     pubkey = rsa.PublicKey.load_pkcs1(pub_file.read())
 
-def save_to_ipfs_B(hospital_id, round, W_final, timestamp, signature):
+def save_to_ipfs_B(hospital_id, round, masked_values, timestamp, signature):
     """模拟存储到 IPFS"""
-
-    # 将 signature 转换为十六进制字符串
-    signature_str = signature.hex()
+    signature_str = signature.hex()  # 转换为十六进制字符串
 
     ipfs_data = {
         "hospital_id": hospital_id,
         "round": round,
-        "W_final": W_final,
+        "masked_values": masked_values,  # 存储掩码后的超参数（包含哈希值 & 数值）
         "timestamp": timestamp,
-        "signature": signature_str  # 使用十六进制字符串替代原来的 bytes
+        "signature": signature_str  # 存储签名
     }
+
     # 存储数据到本地 JSON 模拟 IPFS 存储
     with open(IPFS_STORAGE_B, "a") as file:
-        json.dump(ipfs_data, file)
+        json.dump(ipfs_data, file, indent=4)
         file.write("\n")  # 每个 JSON 对象换行，便于读取
+
     return f"ipfs://mock_hash_B_{int(time.time())}"
 
-def record_to_blockchain_B(hospital_id, round, W_final_hash, timestamp, signature):
+def record_to_blockchain_B(hospital_id, round, masked_values_hash, timestamp, signature):
     """模拟将哈希存储到区块链"""
-
-    # 将 signature 转换为十六进制字符串
-    signature_str = signature.hex()
+    signature_str = signature.hex()  # 转换为十六进制字符串
 
     blockchain_data = {
         "hospital_id": hospital_id,
         "round": round,
-        "W_final_hash": W_final_hash,
+        "masked_values_hash": masked_values_hash,  # 存储掩码后的参数哈希
         "timestamp": timestamp,
-        "signature": signature_str  # 使用十六进制字符串替代原来的 bytes
+        "signature": signature_str
     }
+
     # 存储数据到本地 JSON 模拟区块链存储
     with open(BLOCKCHAIN_B, "a") as file:
-        json.dump(blockchain_data, file)
+        json.dump(blockchain_data, file, indent=4)
         file.write("\n")  # 每个 JSON 对象换行，便于读取
     return "Blockchain record success"
 
@@ -61,8 +60,8 @@ def upload_model_B():
 
     # 提取参数
     hospital_id = data.get("hospital_id")
-    W_final = data.get("W_final")
-    W_final_hash = data.get("W_final_hash")
+    masked_values = data.get("masked_values")  # B 计算后的超参数
+    masked_values_hash = data.get("masked_values_hash")  # 哈希值
     timestamp = data.get("timestamp")
     signature = bytes.fromhex(data.get("signature"))
     round = data.get("round", 1)  # 默认轮次为 1
@@ -71,8 +70,8 @@ def upload_model_B():
     payload_str = json.dumps({
         "hospital_id": hospital_id,
         "round": round,
-        "W_final": W_final,
-        "W_final_hash": W_final_hash,
+        "masked_values": masked_values,
+        "masked_values_hash": masked_values_hash,
         "timestamp": timestamp,
     }, sort_keys=True).encode("utf-8")
 
@@ -82,10 +81,10 @@ def upload_model_B():
         return jsonify({"status": "error", "message": "Signature verification failed"}), 400
 
     # 存储到 IPFS（模拟）
-    ipfs_hash = save_to_ipfs_B(hospital_id, round, W_final, timestamp, signature)
+    ipfs_hash = save_to_ipfs_B(hospital_id, round, masked_values, timestamp, signature)
 
     # 记录到区块链（模拟）
-    blockchain_status = record_to_blockchain_B(hospital_id, round, W_final_hash, timestamp, signature)
+    blockchain_status = record_to_blockchain_B(hospital_id, round, masked_values_hash, timestamp, signature)
 
     return jsonify({
         "status": "success",
@@ -96,4 +95,4 @@ def upload_model_B():
 if __name__ == '__main__':
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain("cert.pem", "key.pem")
-    app.run(host='0.0.0.0', port=5003, ssl_context=context)
+    app.run(host='0.0.0.0', port=5003, ssl_context=context)  # 启动 HTTPS
