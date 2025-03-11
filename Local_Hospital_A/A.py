@@ -9,9 +9,43 @@ from flask import Flask, jsonify
 
 app = Flask(__name__)
 
-# 假设的模型参数
-W_A = np.array([0.7, -0.4, 0.7])  # A 的模型参数
-M_A = np.random.rand(3)  # A 生成的本地掩码
+# 假设的超参数（1×6 向量）
+hyperparams = {
+    "bootstrap": True,  # 二值
+    "max_depth": None,  # 可能是 None
+    "max_features": "sqrt",  # 字符串
+    "min_samples_leaf": 4,  # 数值
+    "min_samples_split": 10,  # 数值
+    "n_estimators": 100  # 数值
+}
+
+# 1️ 计算哈希掩码（不需要交换）
+def hash_value(value):
+    return hashlib.sha256(str(value).encode()).hexdigest()
+
+hashed_hyperparams = {
+    "bootstrap": hash_value(hyperparams["bootstrap"]),
+    "max_depth": hash_value("None"),  # 统一哈希 None
+    "max_features": hash_value(hyperparams["max_features"])
+}
+
+# 2️ 生成随机掩码（仅数值参数需要交换）
+random_mask = {
+    "min_samples_leaf": np.random.randint(-10, 10),
+    "min_samples_split": np.random.randint(-10, 10),
+    "n_estimators": np.random.randint(-10, 10)
+}
+
+# 计算 Masked 超参数（数值参数 + 哈希参数）
+masked_values = {
+    **hashed_hyperparams,  # 直接包含哈希的参数
+    "min_samples_leaf": hyperparams["min_samples_leaf"] + random_mask["min_samples_leaf"],
+    "min_samples_split": hyperparams["min_samples_split"] + random_mask["min_samples_split"],
+    "n_estimators": hyperparams["n_estimators"] + random_mask["n_estimators"]
+}
+
+# 计算 `masked_values` 的哈希值
+masked_values_hash = hashlib.sha256(json.dumps(masked_values, sort_keys=True).encode()).hexdigest()
 
 HOSPITAL_A_NODE_URL = "https://127.0.0.1:5002/upload"
 
@@ -21,29 +55,35 @@ with open("hospital_A_private.pem", "rb") as priv_file:
 
 @app.route('/get_otm', methods=['GET'])
 def get_otm():
-    """医院 A 返回自己的掩码 M_A"""
-    return jsonify({"otm": M_A.tolist()})
+    """医院 A 返回自己的数值掩码"""
+    return jsonify({"otm": random_mask})
 
 @app.route('/request_otm_from_B', methods=['GET'])
 def request_otm_from_B():
     """医院 A 访问医院 B，获取 B 的掩码，并进行计算"""
     url = "https://127.0.0.1:5001/get_otm"  # 访问医院 B 的端口
     response = requests.get(url, verify=False)  # 获取 B 的掩码
-    otm_from_B = np.array(response.json()["otm"])
+    otm_from_B = response.json()["otm"]
 
-    # 计算加掩码的参数
-    W_A_masked = W_A + M_A  # 先加上 A 的掩码
-    W_A_final = W_A_masked - otm_from_B  # 再去掉 B 的掩码
+    # 计算最终的掩码梯度（抵消 A 和 B 的随机掩码）
+    final_masked_values = {
+        "bootstrap": masked_values["bootstrap"],  # 保持哈希值
+        "max_depth": masked_values["max_depth"],
+        "max_features": masked_values["max_features"],
+        "min_samples_leaf": masked_values["min_samples_leaf"] - otm_from_B["min_samples_leaf"],
+        "min_samples_split": masked_values["min_samples_split"] - otm_from_B["min_samples_split"],
+        "n_estimators": masked_values["n_estimators"] - otm_from_B["n_estimators"]
+    }
 
-    # 计算哈希值
-    W_A_final_hash = hashlib.sha256(W_A_final.tobytes()).hexdigest()
+    # 重新计算 `masked_values_hash`
+    final_masked_values_hash = hashlib.sha256(json.dumps(final_masked_values, sort_keys=True).encode()).hexdigest()
 
     # 组织 Payload
     payload = {
         "hospital_id": "A",
-        "round": 1,  # 训练轮次（后续可从 ML 代码获取）
-        "W_final": W_A_final.tolist(),
-        "W_final_hash": W_A_final_hash,
+        "round": 1,  # 训练轮次
+        "masked_values": final_masked_values,
+        "masked_values_hash": final_masked_values_hash,
         "timestamp": int(time.time()),  # 当前时间戳
     }
 
@@ -56,8 +96,8 @@ def request_otm_from_B():
     response = requests.post(HOSPITAL_A_NODE_URL, json=payload, verify=False)
 
     return jsonify({
-        "W_A_final": W_A_final.tolist(),
-        "W_A_final_hash": W_A_final_hash,
+        "masked_values": final_masked_values,
+        "masked_values_hash": final_masked_values_hash,
         "upload_status": response.json()
     })
 
