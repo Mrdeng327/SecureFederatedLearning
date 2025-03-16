@@ -16,41 +16,64 @@ BLOCKCHAIN_B = "hospital_B_blockchain.json"
 with open("../Local_Hospital_B/hospital_B_public.pem", "rb") as pub_file:
     pubkey = rsa.PublicKey.load_pkcs1(pub_file.read())
 
-def save_to_ipfs_B(hospital_id, round, masked_values, timestamp, signature):
+def save_to_ipfs_B(hospital_id, round_num, encrypted_weights, encrypted_bias, timestamp, signature):
     """模拟存储到 IPFS"""
     signature_str = signature.hex()  # 转换为十六进制字符串
 
     ipfs_data = {
         "hospital_id": hospital_id,
-        "round": round,
-        "masked_values": masked_values,  # 存储掩码后的超参数（包含哈希值 & 数值）
+        "round_num": round_num,
+        "encrypted_weights": encrypted_weights,
+        "encrypted_bias": encrypted_bias,
         "timestamp": timestamp,
-        "signature": signature_str  # 存储签名
+        "signature": signature_str
     }
 
-    # 存储数据到本地 JSON 模拟 IPFS 存储
-    with open(IPFS_STORAGE_B, "a") as file:
-        json.dump(ipfs_data, file, indent=4)
-        file.write("\n")  # 每个 JSON 对象换行，便于读取
+    # 读取已有数据，追加新数据
+    if os.path.exists(IPFS_STORAGE_B):
+        with open(IPFS_STORAGE_B, "r") as file:
+            try:
+                existing_data = json.load(file)
+            except json.JSONDecodeError:
+                existing_data = []
+    else:
+        existing_data = []
+
+    existing_data.append(ipfs_data)
+
+    with open(IPFS_STORAGE_B, "w") as file:
+        json.dump(existing_data, file, indent=4)
 
     return f"ipfs://mock_hash_B_{int(time.time())}"
 
-def record_to_blockchain_B(hospital_id, round, masked_values_hash, timestamp, signature):
+def record_to_blockchain_B(hospital_id, round_num, hash_weights, hash_bias, timestamp, signature):
     """模拟将哈希存储到区块链"""
     signature_str = signature.hex()  # 转换为十六进制字符串
 
     blockchain_data = {
         "hospital_id": hospital_id,
-        "round": round,
-        "masked_values_hash": masked_values_hash,  # 存储掩码后的参数哈希
+        "round_num": round_num,
+        "hash_weights": hash_weights,
+        "hash_bias": hash_bias,
         "timestamp": timestamp,
         "signature": signature_str
     }
 
-    # 存储数据到本地 JSON 模拟区块链存储
-    with open(BLOCKCHAIN_B, "a") as file:
-        json.dump(blockchain_data, file, indent=4)
-        file.write("\n")  # 每个 JSON 对象换行，便于读取
+    # 读取已有数据，追加新数据
+    if os.path.exists(BLOCKCHAIN_B):
+        with open(BLOCKCHAIN_B, "r") as file:
+            try:
+                existing_data = json.load(file)
+            except json.JSONDecodeError:
+                existing_data = []
+    else:
+        existing_data = []
+
+    existing_data.append(blockchain_data)
+
+    with open(BLOCKCHAIN_B, "w") as file:
+        json.dump(existing_data, file, indent=4)
+
     return "Blockchain record success"
 
 @app.route('/upload', methods=['POST'])
@@ -60,18 +83,20 @@ def upload_model_B():
 
     # 提取参数
     hospital_id = data.get("hospital_id")
-    masked_values = data.get("masked_values")  # B 计算后的超参数
-    masked_values_hash = data.get("masked_values_hash")  # 哈希值
+    round_num = data.get("round_num")
+    encrypted_weights = data.get("encrypted_weights")
+    encrypted_bias = data.get("encrypted_bias")
+    hash_weights = data.get("hash_weights")
+    hash_bias = data.get("hash_bias")
     timestamp = data.get("timestamp")
     signature = bytes.fromhex(data.get("signature"))
-    round = data.get("round", 1)  # 默认轮次为 1
 
     # 验证签名
     payload_str = json.dumps({
         "hospital_id": hospital_id,
-        "round": round,
-        "masked_values": masked_values,
-        "masked_values_hash": masked_values_hash,
+        "round_num": round_num,
+        "hash_weights": hash_weights,
+        "hash_bias": hash_bias,
         "timestamp": timestamp,
     }, sort_keys=True).encode("utf-8")
 
@@ -81,10 +106,10 @@ def upload_model_B():
         return jsonify({"status": "error", "message": "Signature verification failed"}), 400
 
     # 存储到 IPFS（模拟）
-    ipfs_hash = save_to_ipfs_B(hospital_id, round, masked_values, timestamp, signature)
+    ipfs_hash = save_to_ipfs_B(hospital_id, round_num, encrypted_weights, encrypted_bias, timestamp, signature)
 
     # 记录到区块链（模拟）
-    blockchain_status = record_to_blockchain_B(hospital_id, round, masked_values_hash, timestamp, signature)
+    blockchain_status = record_to_blockchain_B(hospital_id, round_num, hash_weights, hash_bias, timestamp, signature)
 
     return jsonify({
         "status": "success",
