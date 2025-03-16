@@ -16,8 +16,8 @@ NODE_URL = "https://127.0.0.1:5005/upload"  # 上传医院节点 B
 ROUND_NUM = 1  # 轮次从 1 开始
 
 # 读取本地梯度
-grad_weights = np.load("grad_weights.npy")
-grad_bias = np.load("grad_bias.npy")
+grad_weights = np.load("grad_weights2_padded.npy")
+grad_bias = np.load("grad_bias2.npy")
 
 # 确保 grad_bias 是 NumPy 数组
 if isinstance(grad_bias, (float, int)):
