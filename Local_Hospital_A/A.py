@@ -11,8 +11,8 @@ app = Flask(__name__)
 app.config["JSONIFY_PRETTYPRINT_REGULAR"] = True
 
 HOSPITAL_ID = "Hospital_A"
-EXCHANGE_URL = "https://127.0.0.1:5001/get_otm"  # 交换掩码（医院 B）
-NODE_URL = "https://127.0.0.1:5002/upload"  # 上传医院节点 A
+EXCHANGE_URL = "https://127.0.0.1:5003/get_otm"  # 交换掩码（医院 B）
+NODE_URL = "https://127.0.0.1:5004/upload"  # 上传医院节点 A
 ROUND_NUM = 1  # 轮次从 1 开始
 
 # 读取本地梯度
@@ -105,4 +105,4 @@ def upload_encrypted_gradients():
 if __name__ == "__main__":
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain("cert.pem", "key.pem")
-    app.run(host="0.0.0.0", port=5000, ssl_context=context)
+    app.run(host="0.0.0.0", port=5002, ssl_context=context)
