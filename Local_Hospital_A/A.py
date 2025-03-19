@@ -1,4 +1,5 @@
 import hashlib
+import secrets
 import time
 import json
 import rsa
@@ -11,31 +12,31 @@ app = Flask(__name__)
 app.config["JSONIFY_PRETTYPRINT_REGULAR"] = True
 
 HOSPITAL_ID = "Hospital_A"
-EXCHANGE_URL = "https://127.0.0.1:5003/get_otm"  # 交换掩码（医院 B）
-NODE_URL = "https://127.0.0.1:5004/upload"  # 上传医院节点 A
-ROUND_NUM = 1  # 轮次从 1 开始
+EXCHANGE_URL = "https://127.0.0.1:5003/get_otm"  # Exchange mask (hospital B)
+NODE_URL = "https://127.0.0.1:5004/upload"  # Upload Hospital Node A
+ROUND_NUM = 1  # Rounds start at 1
 
-# 读取本地梯度
+# Read local gradient
 grad_weights = np.load("grad_weights.npy")
 grad_bias = np.load("grad_bias.npy")
 
-# 确保 grad_bias 是 NumPy 数组
+# Make sure grad_bias is a NumPy array.
 if isinstance(grad_bias, (float, int)):
     grad_bias = np.array([grad_bias])
 
-# 生成本地掩码
-mask_weights = np.random.rand(*grad_weights.shape)  # 保持数组形状
-mask_bias = np.random.rand()  # 生成单个随机数
+# Generate Local Mask
+mask_weights = np.random.rand(*grad_weights.shape)  # Keep the array shape
+mask_bias = np.random.rand()  # Generate a single random number
 
-# 读取私钥（用于签名）
+# Read private key (for signing)
 with open("hospital_A_private.pem", "rb") as priv_file:
     privkey = rsa.PrivateKey.load_pkcs1(priv_file.read())
 
-# 计算 SHA-256 哈希值
+# Compute the SHA-256 hash
 def compute_hash(data):
     return hashlib.sha256(data.tobytes()).hexdigest()
 
-# 生成签名
+# Generate Signature
 def sign_data(private_key, hospital_id, round_num, hash_weights, hash_bias, timestamp):
     data = json.dumps({
         "hospital_id": hospital_id,
@@ -48,52 +49,66 @@ def sign_data(private_key, hospital_id, round_num, hash_weights, hash_bias, time
 
     return signature.hex()
 
-# API: 获取对方医院 B 的掩码
+#Generate the API Key and print
+API_KEY = secrets.token_hex(32)
+print(f"API Key: {API_KEY}")
+
+# Verify the API Key
+def check_api_key():
+    api_key = request.headers.get("API-Key")
+    print(f"Received API-Key: {api_key}")
+    print(f"Expected API-Key: {API_KEY}")
+    if api_key != API_KEY:
+        return jsonify({"status": "error", "message": "Unauthorized"}), 403
+    return None
+
+
+# API: Get the mask of the other hospital B
 @app.route("/get_otm", methods=["GET"])
 def get_otm():
     return jsonify({
         "mask_weights": mask_weights.tolist(),
-        "mask_bias": float(mask_bias)  # 解决 AttributeError，确保 JSON 里的是 float
+        "mask_bias": float(mask_bias)
     })
 
-# API: 处理梯度加密 & 上传到医院节点 A
+# API: Process gradient encryption & upload to hospital node A
 @app.route("/upload_encrypted_gradients", methods=["POST"])
 def upload_encrypted_gradients():
-    global ROUND_NUM  # 允许修改全局变量
+    global ROUND_NUM
 
     try:
-        # 请求医院 B 获取掩码
-        response = requests.get(EXCHANGE_URL, verify=False)  # 调试阶段禁用 SSL 证书验证
+        # Request Hospital B Get Mask
+        response = requests.get(EXCHANGE_URL, verify=False)
         received_data = response.json()
         received_mask_weights = np.array(received_data["mask_weights"])
-        received_mask_bias = float(received_data["mask_bias"])  # 确保是 float 类型
+        received_mask_bias = float(received_data["mask_bias"])
 
-        # 计算加密梯度
+        # Calculate the encryption gradient
         encrypted_weights = grad_weights + mask_weights - received_mask_weights
         encrypted_bias = float(grad_bias) + float(mask_bias) - received_mask_bias  # 确保计算正确
 
-        # 计算哈希值
+        # Calculate the hash
         hash_weights = compute_hash(encrypted_weights)
         hash_bias = compute_hash(np.array([encrypted_bias]))  # 需要 NumPy 数组计算哈希
         timestamp = int(time.time())
 
-        # 生成签名
+        # Signature generation
         signature = sign_data(privkey, HOSPITAL_ID, ROUND_NUM, hash_weights, hash_bias, timestamp)
 
-        # 上传数据到医院节点 A
+        # Upload data to hospital node A
         payload = {
             "hospital_id": HOSPITAL_ID,
             "round_num": ROUND_NUM,
             "encrypted_weights": encrypted_weights.tolist(),
-            "encrypted_bias": encrypted_bias,  # 直接用 float
+            "encrypted_bias": encrypted_bias,
             "hash_weights": hash_weights,
             "hash_bias": hash_bias,
             "timestamp": timestamp,
             "signature": signature
         }
-        response = requests.post(NODE_URL, json=payload, verify=False)  # 调试阶段禁用 SSL 证书验证
+        response = requests.post(NODE_URL, json=payload, verify=False)
 
-        # 轮次 +1，确保下一次为新轮次
+        # Round +1 to ensure that the next one is a new round
         ROUND_NUM += 1
 
         return jsonify(response.json())
