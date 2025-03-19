@@ -1,9 +1,9 @@
 import rsa
 
-# 生成 2048 位密钥对（推荐 2048 位，如果是测试可以用 512 位）
+# Generate 2048-bit key pair
 (pubkey, privkey) = rsa.newkeys(2048)
 
-# 将密钥保存到文件
+# Save the key to a file
 with open("hospital_A_public.pem", "wb") as pub_file:
     pub_file.write(pubkey.save_pkcs1("PEM"))
 
