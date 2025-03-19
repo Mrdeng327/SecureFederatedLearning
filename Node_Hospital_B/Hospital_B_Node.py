@@ -10,21 +10,21 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-# IPFS API 地址
+# IPFS API address
 IPFS_API = "http://127.0.0.1:5001/api/v0/add"
 BLOCKCHAIN_B = "hospital_B_blockchain.json"
 
-# 读取医院 A 的公钥（用于验证签名）
+# Read the public key of Hospital A (for signature verification)
 with open("../Local_Hospital_B/hospital_B_public.pem", "rb") as pub_file:
     pubkey = rsa.PublicKey.load_pkcs1(pub_file.read())
 
 
 def save_to_ipfs_B(hospital_id, round_num, encrypted_weights, encrypted_bias, timestamp, signature):
-    """直接上传医院 B 的加密梯度到 IPFS，而不存本地文件"""
+    """Upload the encrypted gradient of Hospital B directly to IPFS without storing local files"""
 
-    signature_str = signature.hex()  # 转换为十六进制字符串
+    signature_str = signature.hex()  # Convert to hexadecimal string
 
-    # 直接创建 JSON 数据
+    # Create JSON data directly
     ipfs_data = {
         "hospital_id": hospital_id,
         "round_num": round_num,
@@ -35,26 +35,26 @@ def save_to_ipfs_B(hospital_id, round_num, encrypted_weights, encrypted_bias, ti
     }
 
     try:
-        # 直接上传 JSON 数据
+        # Directly uploading JSON data
         files = {
             "file": ("hospital_A_data.json", json.dumps(ipfs_data), "application/json")
         }
         response = requests.post(IPFS_API , files=files)
 
-        # 解析 IPFS 响应
+        # Parsing IPFS Responses
         if response.status_code == 200:
             ipfs_hash = response.json()["Hash"]
             return f"ipfs://{ipfs_hash}"
         else:
-            raise Exception(f"IPFS 上传失败: {response.text}")
+            raise Exception(f"Local IPFS upload failed: {response.text}")
 
     except Exception as e:
-        print(f"上传到 IPFS 失败: {e}")
+        print(f"Local IPFS upload failed: {e}")
         return None
 
 def record_to_blockchain_B(hospital_id, round_num, hash_weights, hash_bias, timestamp, signature):
-    """模拟将哈希存储到区块链"""
-    signature_str = signature.hex()  # 转换为十六进制字符串
+    """Simulate storing hashes to the blockchain"""
+    signature_str = signature.hex()  # Convert to hexadecimal string
 
     blockchain_data = {
         "hospital_id": hospital_id,
@@ -65,7 +65,7 @@ def record_to_blockchain_B(hospital_id, round_num, hash_weights, hash_bias, time
         "signature": signature_str
     }
 
-    # 读取已有数据，追加新数据
+    # 读取已有数据，追加新数据Read existing data and append new data
     if os.path.exists(BLOCKCHAIN_B):
         with open(BLOCKCHAIN_B, "r") as file:
             try:
@@ -84,10 +84,10 @@ def record_to_blockchain_B(hospital_id, round_num, hash_weights, hash_bias, time
 
 @app.route('/upload', methods=['POST'])
 def upload_model_B():
-    """接收医院 B 发送的模型更新"""
+    """Receive model updates from Hospital B"""
     data = request.json
 
-    # 提取参数
+    # extract parameter
     hospital_id = data.get("hospital_id")
     round_num = data.get("round_num")
     encrypted_weights = data.get("encrypted_weights")
@@ -97,7 +97,7 @@ def upload_model_B():
     timestamp = data.get("timestamp")
     signature = bytes.fromhex(data.get("signature"))
 
-    # 验证签名
+    # Verify Signature
     payload_str = json.dumps({
         "hospital_id": hospital_id,
         "round_num": round_num,
@@ -111,13 +111,13 @@ def upload_model_B():
     except rsa.VerificationError:
         return jsonify({"status": "error", "message": "Signature verification failed"}), 400
 
-    # 存储到 IPFS
+    # Store to IPFS
 
     ipfs_hash = save_to_ipfs_B(hospital_id, round_num, encrypted_weights, encrypted_bias, timestamp, signature)
 
 
 
-    # 记录到区块链
+    # Record to the blockchain
     blockchain_status = record_to_blockchain_B(hospital_id, round_num, hash_weights, hash_bias, timestamp, signature)
 
     return jsonify({
