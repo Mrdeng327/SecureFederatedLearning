@@ -7,24 +7,32 @@ import ssl
 import requests
 import rsa
 from flask import Flask, request, jsonify
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 app = Flask(__name__)
 
-# IPFS API 地址
-IPFS_API = "http://127.0.0.1:5001/api/v0/add"
+limiter = Limiter(key_func=get_remote_address)
+limiter.init_app(app)
+
+# Read the public key of Hospital A (for signature verification)
+LOCAL_IPFS_API = "http://127.0.0.1:5001/api/v0/add"
+PINATA_API_URL = "https://api.pinata.cloud/pinning/pinFileToIPFS"  # Pinata IPFS API
+PINATA_API_KEY = "9ff40d2d04c6f4758d7f"  # Pinata API key
+PINATA_SECRET_API_KEY = "59dabf5eed8aeb8cda608e218ef7f1a7e9c684d89f2bafc3efea2651047686d8"  # Pinata API key
+
 BLOCKCHAIN_A = "hospital_A_blockchain.json"
 
-# 读取医院 A 的公钥（用于验证签名）
 with open("../Local_Hospital_A/hospital_A_public.pem", "rb") as pub_file:
     pubkey = rsa.PublicKey.load_pkcs1(pub_file.read())
 
 
 def save_to_ipfs_A(hospital_id, round_num, encrypted_weights, encrypted_bias, timestamp, signature):
-    """直接上传医院 A 的加密梯度到 IPFS，而不存本地文件"""
+    """Upload the encrypted gradient of Hospital A directly to IPFS without storing local files"""
 
-    signature_str = signature.hex()  # 转换为十六进制字符串
+    signature_str = signature.hex()  # Convert to hexadecimal string
 
-    # 直接创建 JSON 数据
+    # Create JSON data directly
     ipfs_data = {
         "hospital_id": hospital_id,
         "round_num": round_num,
@@ -35,26 +43,42 @@ def save_to_ipfs_A(hospital_id, round_num, encrypted_weights, encrypted_bias, ti
     }
 
     try:
-        # 直接上传 JSON 数据
-        files = {
-            "file": ("hospital_A_data.json", json.dumps(ipfs_data), "application/json")
-        }
-        response = requests.post(IPFS_API , files=files)
 
-        # 解析 IPFS 响应
+        files = {"file": ("hospital_A_data.json", json.dumps(ipfs_data), "application/json")}
+        response = requests.post(LOCAL_IPFS_API, files=files)
+
+        # Parse the IPFS response
         if response.status_code == 200:
-            ipfs_hash = response.json()["Hash"]
-            return f"ipfs://{ipfs_hash}"
+            local_ipfs_hash = response.json()["Hash"]
+            print(f" Local IPFS upload successful: {local_ipfs_hash}")
         else:
-            raise Exception(f"IPFS 上传失败: {response.text}")
+            raise Exception(f"Local IPFS upload failed: {response.text}")
+
+        # Upload to Pinata
+        headers = {
+            "pinata_api_key": PINATA_API_KEY,
+            "pinata_secret_api_key": PINATA_SECRET_API_KEY
+        }
+        pinata_response = requests.post(PINATA_API_URL, files=files, headers=headers)
+
+        if pinata_response.status_code == 200:
+            pinata_ipfs_hash = pinata_response.json()["IpfsHash"]
+            print(f" Pinata IPFS upload successful: {pinata_ipfs_hash}")
+            return {
+                "local_ipfs": f"ipfs://{local_ipfs_hash}",
+                "pinata": f"https://gateway.pinata.cloud/ipfs/{pinata_ipfs_hash}"
+            }
+        else:
+            raise Exception(f"Pinata upload failed: {pinata_response.text}")
 
     except Exception as e:
-        print(f"上传到 IPFS 失败: {e}")
+        print(f" IPFS upload failed: {e}")
         return None
 
+
 def record_to_blockchain_A(hospital_id, round_num, hash_weights, hash_bias, timestamp, signature):
-    """模拟将哈希存储到区块链"""
-    signature_str = signature.hex()  # 转换为十六进制字符串
+    """Simulate storing hashes to the blockchain"""
+    signature_str = signature.hex()  # Convert to hexadecimal string
 
     blockchain_data = {
         "hospital_id": hospital_id,
@@ -65,7 +89,7 @@ def record_to_blockchain_A(hospital_id, round_num, hash_weights, hash_bias, time
         "signature": signature_str
     }
 
-    # 读取已有数据，追加新数据
+    # Read existing data and append new data
     if os.path.exists(BLOCKCHAIN_A):
         with open(BLOCKCHAIN_A, "r") as file:
             try:
@@ -82,12 +106,14 @@ def record_to_blockchain_A(hospital_id, round_num, hash_weights, hash_bias, time
 
     return "Blockchain record success"
 
+
 @app.route('/upload', methods=['POST'])
+@limiter.limit("5 per minute")
 def upload_model_A():
-    """接收医院 A 发送的模型更新"""
+    """Receive model updates from Hospital A"""
     data = request.json
 
-    # 提取参数
+    # extract parameter
     hospital_id = data.get("hospital_id")
     round_num = data.get("round_num")
     encrypted_weights = data.get("encrypted_weights")
@@ -97,7 +123,7 @@ def upload_model_A():
     timestamp = data.get("timestamp")
     signature = bytes.fromhex(data.get("signature"))
 
-    # 验证签名
+    # Verify Signature
     payload_str = json.dumps({
         "hospital_id": hospital_id,
         "round_num": round_num,
@@ -111,22 +137,20 @@ def upload_model_A():
     except rsa.VerificationError:
         return jsonify({"status": "error", "message": "Signature verification failed"}), 400
 
-    # 存储到 IPFS
-
+    # Upload data to IPFS
     ipfs_hash = save_to_ipfs_A(hospital_id, round_num, encrypted_weights, encrypted_bias, timestamp, signature)
 
-
-
-    # 记录到区块链
+    # Record to the blockchain
     blockchain_status = record_to_blockchain_A(hospital_id, round_num, hash_weights, hash_bias, timestamp, signature)
 
     return jsonify({
         "status": "success",
         "ipfs_hash": ipfs_hash,
-        "blockchain_status": blockchain_status
+        "blockchain_status": blockchain_status,
     })
+
 
 if __name__ == '__main__':
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     context.load_cert_chain("cert.pem", "key.pem")
-    app.run(host='0.0.0.0', port=5004, ssl_context=context)  # 启动 HTTPS
+    app.run(host='0.0.0.0', port=5004, ssl_context=context)  #
