@@ -13,14 +13,14 @@ IPFS_RETRIEVAL = "http://127.0.0.1:8080/ipfs/"
 
 # Connect to web3
 w3 = Web3(Web3.HTTPProvider('http://127.0.0.1:7545'))
-CONTRACT_ADDRESS = "0xC8c3a5c87D1fC66052Cf08C5cf197E95A2273182"
+CONTRACT_ADDRESS = "0x16d8FD14D7521202161089276450b37b5cE3F548"
 with open("blockchain/build/contracts/IncentiveScheme.json", "r") as f:
     contract_json = json.load(f)
 
 contract_abi = contract_json["abi"]
 contract = w3.eth.contract(address=CONTRACT_ADDRESS, abi=contract_abi)
 OWNER_ADDRESS = w3.eth.accounts[0]
-PRIVATE_KEY = "0xf33a6b138b1cc8453865c58894d5b90e8adb7c8f51920850efab824a138eccf5"
+PRIVATE_KEY = "0x2009915365d59054ff570c0d8b2fc7b767a01c80aed09e67ee370dc0ef47ba1c"
 
 with open("aggregator/aggregator_private.pem", "rb") as priv_file:
     privkey = rsa.PrivateKey.load_pkcs1(priv_file.read())
@@ -230,10 +230,10 @@ def test_aggregation():
 
 def main():
     # Register test participants
-    HOSPITAL_A_ADDRESS = w3.eth.accounts[2]
-    HOSPITAL_B_ADDRESS = w3.eth.accounts[3]
-    register_participant(HOSPITAL_A_ADDRESS, "hospital_A")
-    register_participant(HOSPITAL_B_ADDRESS, "hospital_B")
+    # HOSPITAL_A_ADDRESS = w3.eth.accounts[2]
+    # HOSPITAL_B_ADDRESS = w3.eth.accounts[3]
+    # register_participant(HOSPITAL_A_ADDRESS, "hospital_A")
+    # register_participant(HOSPITAL_B_ADDRESS, "hospital_B")
 
     # Evaluate contributions and submit to contract
     # evaluations = evaluate_contributions()
@@ -243,13 +243,13 @@ def main():
     # Compute global model
     # global_weights, global_bias = aggregate_gradients()
 
-    # Submit to smart contract, encrypted with participants keys
+    # # Submit to smart contract, encrypted with participants keys
     # submit_global_model(global_weights, global_bias)
 
     participants = get_registered_participants()
     print(participants)
 
-    # test_aggregation()
+    test_aggregation()
     
     pass
 

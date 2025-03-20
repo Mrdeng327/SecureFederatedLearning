@@ -27,6 +27,7 @@ contract IncentiveScheme {
     bool public allSubmitted = false;
     bool public evaluationsSubmitted = false;
     bool public rewardPunishCompleted = false;
+    bool public globalModelSubmitted = false;
 
     event ParticipantRegistered(address participant);
     event ParticipantUnregistered(address participant);
@@ -207,6 +208,8 @@ contract IncentiveScheme {
         require(participants[participant].permittedToGlobalModel, "Participant not permitted to access global model");
 
         participants[participant].globalModelCID = cid;
+        globalModelSubmitted = true;
+
         emit GlobalModelSubmitted(participant, cid);
     }
 
@@ -214,7 +217,7 @@ contract IncentiveScheme {
      * @dev Start new round.
      */
     function newRound() public onlyOwner {
-        require(rewardPunishCompleted, "Reward/punish not completed");
+        require(globalModelSubmitted, "Global models have not been submitted");
         require(participantCount > 0, "No participants registered");
 
         for (uint i = 0; i < participantAddrs.length; i++) {

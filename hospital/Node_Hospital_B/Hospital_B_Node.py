@@ -32,14 +32,14 @@ with open("hospital_B_private.pem", "rb") as priv_file:
 
 # Connect to web3
 w3 = Web3(Web3.HTTPProvider('http://127.0.0.1:7545'))
-CONTRACT_ADDRESS = "0xC8c3a5c87D1fC66052Cf08C5cf197E95A2273182"
+CONTRACT_ADDRESS = "0x16d8FD14D7521202161089276450b37b5cE3F548"
 with open("../../blockchain/build/contracts/IncentiveScheme.json", "r") as f:
     contract_json = json.load(f)
 
 contract_abi = contract_json["abi"]
 contract = w3.eth.contract(address=CONTRACT_ADDRESS, abi=contract_abi)
 HOSPITAL_B_ADDRESS = w3.eth.accounts[3]
-PRIVATE_KEY = "0xd93c5399e2dc2a482af448172567e9ad2bcdc1382aca4ca47dc6064c56d53b4f"
+PRIVATE_KEY = "0x27a1cebb5d82eaaeacc45a2f88f6e0622bfd5e6e09c8b4f48409ab79a5a7c758"
 
 
 def save_to_ipfs_B(hospital_id, round_num, masked_weights, masked_bias, acc_improvement, timestamp, signature):
