@@ -230,21 +230,21 @@ def test_aggregation():
 
 def main():
     # Register test participants
-    # HOSPITAL_A_ADDRESS = w3.eth.accounts[2]
-    # HOSPITAL_B_ADDRESS = w3.eth.accounts[3]
-    # register_participant(HOSPITAL_A_ADDRESS, "hospital_A")
-    # register_participant(HOSPITAL_B_ADDRESS, "hospital_B")
+    HOSPITAL_A_ADDRESS = w3.eth.accounts[2]
+    HOSPITAL_B_ADDRESS = w3.eth.accounts[3]
+    register_participant(HOSPITAL_A_ADDRESS, "hospital_A")
+    register_participant(HOSPITAL_B_ADDRESS, "hospital_B")
 
     # Evaluate contributions and submit to contract
-    # evaluations = evaluate_contributions()
-    # print(evaluations)
-    # submit_evaluations(evaluations)
+    evaluations = evaluate_contributions()
+    print(evaluations)
+    submit_evaluations(evaluations)
 
     # Compute global model
-    # global_weights, global_bias = aggregate_gradients()
+    global_weights, global_bias = aggregate_gradients()
 
-    # # Submit to smart contract, encrypted with participants keys
-    # submit_global_model(global_weights, global_bias)
+    # Submit to smart contract, encrypted with participants keys
+    submit_global_model(global_weights, global_bias)
 
     participants = get_registered_participants()
     print(participants)
