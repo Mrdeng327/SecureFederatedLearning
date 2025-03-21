@@ -1,14 +1,10 @@
-import hashlib
-import time
 import json
-import os
 import ssl
-
 import requests
 import rsa
 from flask import Flask, request, jsonify
 
-from web3 import Web3, HTTPProvider
+from web3 import Web3
 
 from Crypto.Cipher import AES
 from Crypto.Random import get_random_bytes

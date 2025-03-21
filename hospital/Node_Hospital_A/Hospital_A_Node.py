@@ -1,16 +1,12 @@
-import hashlib
-import time
 import json
-import os
 import ssl
-
 import requests
 import rsa
 from flask import Flask, request, jsonify
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
-from web3 import Web3, HTTPProvider
+from web3 import Web3
 
 from Crypto.Cipher import AES
 from Crypto.Random import get_random_bytes
@@ -72,26 +68,23 @@ def save_to_ipfs_A(hospital_id, round_num, masked_weights, masked_bias, acc_impr
         if response.status_code == 200:
             local_ipfs_hash = response.json()["Hash"]
             print(f" Local IPFS upload successful: {local_ipfs_hash}")
-            return local_ipfs_hash
         else:
             raise Exception(f"Local IPFS upload failed: {response.text}")
 
-        # # Upload to Pinata
-        # headers = {
-        #     "pinata_api_key": PINATA_API_KEY,
-        #     "pinata_secret_api_key": PINATA_SECRET_API_KEY
-        # }
-        # pinata_response = requests.post(PINATA_API_URL, files=files, headers=headers)
+        # Upload to Pinata
+        headers = {
+            "pinata_api_key": PINATA_API_KEY,
+            "pinata_secret_api_key": PINATA_SECRET_API_KEY
+        }
+        pinata_response = requests.post(PINATA_API_URL, files=files, headers=headers)
 
-        # if pinata_response.status_code == 200:
-        #     pinata_ipfs_hash = pinata_response.json()["IpfsHash"]
-        #     print(f" Pinata IPFS upload successful: {pinata_ipfs_hash}")
-        #     return {
-        #         "local_ipfs": f"ipfs://{local_ipfs_hash}",
-        #         "pinata": f"https://gateway.pinata.cloud/ipfs/{pinata_ipfs_hash}"
-        #     }
-        # else:
-        #     raise Exception(f"Pinata upload failed: {pinata_response.text}")
+        if pinata_response.status_code == 200:
+            pinata_ipfs_hash = pinata_response.json()["IpfsHash"]
+            print(f" Pinata IPFS upload successful: {pinata_ipfs_hash}")
+        else:
+            raise Exception(f"Pinata upload failed: {pinata_response.text}")
+        
+        return local_ipfs_hash
 
     except Exception as e:
         print(f" IPFS upload failed: {e}")
